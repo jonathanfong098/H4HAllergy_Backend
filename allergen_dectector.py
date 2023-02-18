@@ -1,12 +1,10 @@
-# import os
+import os
 import cv2
 from google.cloud import vision
 
-# os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r'Service_Account_Token'
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r'Service_Account_Token.json'
 
-# client = vision.ImageAnnotatorClient()
-
-
+client = vision.ImageAnnotatorClient()
 
 
 def draw_ocr_results(image, text, rect, color=(0, 255, 0)):

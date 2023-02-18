@@ -1,6 +1,17 @@
 import os
 import cv2
 from google.cloud import vision
+import firebase_admin
+from firebase_admin import credentials, db
+
+# Initialize Firebase Admin
+cred = credentials.Certificate("./firebase_account_key.json")
+firebase_admin.initialize_app(cred)
+
+# Get Database from Firebase
+UID = 'TEMPORARY_ID'
+ref = db.reference("TEMPORARY_DATABASENAME")
+allergy_list = ref.get()[UID]
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r'Service_Account_Token.json'
 

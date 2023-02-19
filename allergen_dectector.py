@@ -1,113 +1,144 @@
 import os, io
+import base64
 import cv2
 from google.cloud import vision
-import firebase_admin
-from firebase_admin import credentials, db
 
-# Initialize Firebase Admin
-cred = credentials.Certificate("./firebase_account_key.json")
-firebase_admin.initialize_app(cred)
+def create_google_vision_client():
+    os.environ['SERVICE_ACCOUNT_TOKEN'] = r'Service_Account_Token.json'
+    client = vision.ImageAnnotatorClient()
+    return client 
 
-# Get Database from Firebase
-# UID = 'TEMPORARY_ID'
-# ref = db.reference('TEMPORARY_DATABASENAME')
-# allergy_list = ref.get()[UID]
-allergy_list = ['nuts', 'gluten', 'canola']
+def get_text_in_image(b64_image):
+    client = create_google_vision_client()
 
-# draw boxes
-def draw_ocr_results(image, text, rect, color=(0,0,255)):
+    image = vision.Image(content=b64_image) 
+    response = client.text_detection(image=image) 
+    texts = response.text_annotations # all identified text and related metadata 
+    
+    return texts
+
+def create_image_with_markers(b64_image, texts, allergies):
+    decode_original_image = base64.b64decode(b64_image) #decode base64 representation of image
+
+    image_to_edit = open('original_image.jpg', 'wb') 
+    image_to_edit.write(decode_original_image) #create image file using decoded information 
+
+    original_image = cv2.imread('original_image.jpg')
+    final_image = original_image.copy()
+
+    for text in texts:
+        for allergy in allergies:
+            if allergy.lower() in text.description.lower():
+
+                # get box coordinates 
+                startX = text.bounding_poly.vertices[0].x
+                startY = text.bounding_poly.vertices[0].y
+                endX = text.bounding_poly.vertices[1].x
+                endY = text.bounding_poly.vertices[3].y
+                rect = (startX, startY, endX, endY) # create box
+
+                # draw box 
+                output = original_image.copy()
+                output = draw_ocr_results(output, rect)
+                final_image = draw_ocr_results(final_image, rect)
+
+    cv2.imwrite('final_image.jpg', final_image)
+    with open('final_image.jpg', 'rb') as final_image_file:
+        final_image_content = final_image_file.read()
+    b64_final_image = base64.b64encode(final_image_content).decode('utf-8')
+
+    # delete images 
+    if os.path.exists('original_image.jpg'):
+        os.remove('original_image.jpg')
+    
+    if os.path.exists('final_image.jpg'):
+        os.remove('final_image.jpg')
+
+    return b64_final_image
+
+
+def draw_ocr_results(image, rect, color=(0,0,255)):
     # unpacking the bounding box rectangle and draw a bounding box
     # surrounding the text along with the OCR'd text itself
     (startX, startY, endX, endY) = rect
     cv2.rectangle(image, (startX, startY), (endX, endY), color, 2)
-    # cv2.putText(image, text, (startX, startY - 10),
-    #             cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-    # return the output image
     return image
 
-# client
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r'Service_Account_Token.json'
 
-# Client
-client = vision.ImageAnnotatorClient()
 
-#image in the cloud
-#image = vision.Image()
-#image.source.image_uri = 'https://storage.googleapis.com/h4h_allergy/IMG_3179.jpg'
+# #image locally
+# IMAGE_NAME = 'doritos.jpg'
+# IMAGE_PATH = '/Users/jonathanfong/Desktop/H4HAllergy_Backend/'
+# with io.open(os.path.join(IMAGE_PATH, IMAGE_NAME), 'rb') as image_file:
+#     image_content = image_file.read()
+# b64_encoded_image = base64.b64encode(image_content).decode('utf-8')
+# # print("encoded image: ", b64_encoded_image)
+# image = vision.Image(content=b64_encoded_image)
 
-#image locally
-IMAGE_NAME = 'doritos.jpg'
-IMAGE_PATH = '/Users/jonathanfong/Desktop/H4HAllergy_Backend/'
-FULL_PATH = IMAGE_PATH + IMAGE_NAME
-with io.open(os.path.join(IMAGE_PATH, IMAGE_NAME), 'rb') as image_file:
-    content = image_file.read()
-image = vision.Image(content=content)
+# #identify text
+# response = client.text_detection(image=image)
+# texts = response.text_annotations
 
-#identify text
-response = client.text_detection(image=image)
-if response.error.message:
-    raise Exception(
-        '{}\nFor more info on error messages, check: '
-        'https://cloud.google.com/apis/design/errors'.format(
-            response.error.message))
-texts = response.text_annotations
+# #editing image
+# decoded_image = base64.b64decode(b64_encoded_image) #decode base64 representation of image
 
-#editing image
-cv2_image = cv2.imread(FULL_PATH)
-final = cv2_image.copy()
-# print('cv2_image: ', cv2_image)
+# if os.path.exists('original_image.jpg'):
+#     os.remove('original_image.jpg')
 
-#print text
+# image_to_edit = open('original_image.jpg', 'wb') 
+# image_to_edit.write(decoded_image) #create image file using decoded information 
 
-foundAllergy = False
-allergyList = []
-# Add relevant texts to 
-for text in texts:
-    for allergy in allergy_list:
-        if allergy.lower() in text.description.lower():
-            foundAllergy = True
-            allergyList.append(allergy.lower())
+# #edit image using cv
+# original_image = cv2.imread('original_image.jpg')
+# # print('original_image: ', original_image)
+# final = original_image.copy()
 
-            ocr = text.description
-            startX = text.bounding_poly.vertices[0].x
-            startY = text.bounding_poly.vertices[0].y
-            endX = text.bounding_poly.vertices[1].x
-            endY = text.bounding_poly.vertices[2].y
-            rect = (startX, startY, endX, endY)
-            print("rect coordinates: ", rect)
+# foundAllergy = False
+# allergyList = set()
+# # Add relevant texts to 
+# for text in texts:
+#     # print(text.description)
+#     for allergy in allergy_list:
+#         if allergy.lower() in text.description.lower():
+#             foundAllergy = True
+#             allergyList.add(allergy.lower())
+
+#             ocr = text.description
+#             # print('orc: ', ocr)
+#             print(text.bounding_poly.vertices)
+#             startX = text.bounding_poly.vertices[0].x
+#             startY = text.bounding_poly.vertices[0].y
+#             endX = text.bounding_poly.vertices[1].x
+#             endY = text.bounding_poly.vertices[3].y
+#             rect = (startX, startY, endX, endY)
+#             # print("rect coordinates: ", rect)
             
-            output = cv2_image.copy()
-            output = draw_ocr_results(output, ocr, rect)
-            final = draw_ocr_results(final, ocr, rect)
-            print(ocr)
+#             output = original_image.copy()
+#             output = draw_ocr_results(output, ocr, rect)
+#             final = draw_ocr_results(final, ocr, rect)
 
-# show the final output image
-cv2.imshow("Final Output", final)
-cv2.waitKey(0)
-
-    # vertices = (['({},{})'.format(vertex.x, vertex.y)
-    #             for vertex in text.bounding_poly.vertices])
-
-    # print('bounds: {}'.format(','.join(vertices)))
-
-response = {}
-response['foundAllergy'] = foundAllergy
-response['allergyList'] = allergyList
+# # create final image
+# cv2.imwrite('final_image.jpg', final)
+# with open('final_image.jpg', 'rb') as final_image:
+#     final_image_content = final_image.read()
+# b64_encoded_final_image_data = base64.b64encode(final_image_content).decode('utf-8')
+# # print("b64_encoded_final_image_data: ", b64_encoded_final_image_data)
 
 
-# def draw_ocr_results(image, text, rect, color=(0, 255, 0)):
-#     # unpacking the bounding box rectangle and draw a bounding box
-#     # surrounding the text along with the OCR'd text itself
-#     (startX, startY, endX, endY) = rect
-#     cv2.rectangle(image, (startX, startY), (endX, endY), color, 2)
-#     cv2.putText(image, text, (startX, startY - 10),
-#                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-#     # return the output image
-#     return image
-
-def main():
-    print('testing')
+# # show the final output image
+# # cv2.imshow("Final Output", original_image)
+# cv2.imshow("Final Output", final)
+# cv2.waitKey(0)
 
 
-if __name__ == "__main__":
-    main()
+# response = {}
+# response['foundAllergy'] = foundAllergy
+# response['allergyList'] = allergyList
+# print("response: ", response)
+
+# def main():
+#     print('testing')
+
+
+# if __name__ == "__main__":
+#     main()

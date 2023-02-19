@@ -23,10 +23,10 @@ def create_detected_allergen_list(texts, allergies):
     allergens = set()
 
     for text in texts:
-        for allergy in allergies:
-            if allergy.lower() in text.description.lower():
+        item = text.description.lower()
+        if item in allergies:
                 has_allergen = True
-                allergens.add(allergy.lower())
+                allergens.add(item)
 
     allergens = list(allergens)
     

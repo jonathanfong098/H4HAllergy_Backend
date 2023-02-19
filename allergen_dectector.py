@@ -9,33 +9,33 @@ cred = credentials.Certificate("./firebase_account_key.json")
 firebase_admin.initialize_app(cred)
 
 # Get Database from Firebase
-UID = 'TEMPORARY_ID'
-ref = db.reference("TEMPORARY_DATABASENAME")
-allergy_list = ref.get()[UID]
+# UID = 'TEMPORARY_ID'
+# ref = db.reference('TEMPORARY_DATABASENAME')
+# allergy_list = ref.get()[UID]
+allergy_list = ['nuts', 'gluten', 'canola']
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = r'Service_Account_Token.json'
 
-#client
+# Client
 client = vision.ImageAnnotatorClient()
 
-#image in the cloud
+# Image in the cloud
 image = vision.Image()
 image.source.image_uri = 'https://storage.googleapis.com/h4h_allergy/IMG_3179.jpg'
 
-#identify text in the cloud 
+# Identify text in the cloud 
 response = client.text_detection(image=image)
 texts = response.text_annotations
-print('Texts:')
 
+foundAllergy = False
+allergyList = []
+
+# Add relevant texts to 
 for text in texts:
-    print(text.description)
-    # if text.description == 'corn':
-    #     print('\n"{}"'.format(text.description))
-
-    # vertices = (['({},{})'.format(vertex.x, vertex.y)
-    #             for vertex in text.bounding_poly.vertices])
-
-    # print('bounds: {}'.format(','.join(vertices)))
+    for allergy in allergy_list:
+        if allergy.lower() in text.description.lower():
+            foundAllergy = True
+            allergyList.append(allergy.lower())
 
 if response.error.message:
     raise Exception(
@@ -43,8 +43,9 @@ if response.error.message:
         'https://cloud.google.com/apis/design/errors'.format(
             response.error.message))
 
-#file
-# FILE_NAME = 'doritos.jpg'
+response = {}
+response['foundAllergy'] = foundAllergy
+response['allergyList'] = allergyList
 
 
 # def draw_ocr_results(image, text, rect, color=(0, 255, 0)):
